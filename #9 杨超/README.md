@@ -115,8 +115,11 @@ join registration
 	on `estate`.`estateid` = `registration`.`estateid`
 WHERE `registration`.`PurchasedDate` LIKE '2018%'
 group by estatecity,EstateType
+```
 /* 奇怪的现象：WHERE换成HAVING并放到最后一行会报错,最后去掉了`registration`.
 就成功了，查了一下执行顺序可知WHERE与HAVING执行中间插了group的执行，所以registration的表可能在group后被“丢弃”了，再在这时用`registration`.就会找不到*/
+
+```sql
 -- 10.
 create view Search AS
 select `estate`.`estateid`, `estate`search.`EstatcName`, `estate`.`estatetype`, `estate`.`propertyarea`,
@@ -137,7 +140,7 @@ group by `estate`.`EstateCity`
 ## 个人感想
 
 sql语句老是因为蜜汁原因报错，大部分是执行顺序搞错了导致报错，但每次对着执行顺序表查真的很烦欸┭┮﹏┭┮
-个人认为未来应该加强对于sql底层执行的理解~
+个人认为未来应该加强对于sql底层执行顺序的理解~
 
 ## 学习sql过程
 
