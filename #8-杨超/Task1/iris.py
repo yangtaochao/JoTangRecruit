@@ -43,7 +43,8 @@ class NET(nn.Module):
         hidden2 = self.hidden2(relu1)
         relu2 = self.relu2(hidden2)
 
-        out = self.softmax(relu2,dim=1)
+        outpre = self.out(relu2)
+        out = self.softmax(outpre,dim=1)
 
         return out
 #测试函数
@@ -64,8 +65,8 @@ optimizer = torch.optim.Adam(net.parameters(),lr = 0.02)
 #这是一个交叉熵损失函数,不懂它没关系(^_^)
 loss_func = torch.nn.CrossEntropyLoss()
 costs = []
-#完善代码:请设置一个训练次数的变量(这个神经网络需要训练2000次)
-count = 2000
+#完善代码:请设置一个训练次数的变量(这个神经网络需要训练200次)
+count = 200
 # 训练网络
 #完善代码:把参数补充完整
 for epoch in range(count):
@@ -83,10 +84,7 @@ for epoch in range(count):
     costs.append(cost / label_size)
 #可视化
 
-axes = plt.gca()
 plt.plot(costs)
-axes.set_xlim([0,1000])
-axes.set_ylim([0.019,0.026])
 plt.show()
 
 # 测试训练集准确率
@@ -105,6 +103,7 @@ target_y1 = y_test.numpy()
 
 accuracy1 = float((pred_y1 == target_y1).astype(int).sum()) / float(target_y1.size)
 print("测试集准确率为", accuracy1 * 100, "%")
+
 
 #至此,你已经拥有了一个简易的神经网络,运行一下试试看吧
 #最后,回答几个简单的问题,本次的问题属于监督学习还是无监督学习呢?batch size又是多大呢?像本题这样的batch size是否适用于大数据集呢,原因是?

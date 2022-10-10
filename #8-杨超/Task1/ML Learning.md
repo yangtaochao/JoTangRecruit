@@ -180,9 +180,187 @@ for t in range(100):
 
 ## 分类
 
+### 建立数据集
+
 ```Python
-    
+    import torch
+import matplotlib.pyplot as plt
+
+# 假数据
+n_data = torch.ones(100, 2)         # 数据的基本形态
+x0 = torch.normal(2*n_data, 1)      # 类型0 x data (tensor), shape=(100, 2)
+y0 = torch.zeros(100)               # 类型0 y data (tensor), shape=(100, )
+x1 = torch.normal(-2*n_data, 1)     # 类型1 x data (tensor), shape=(100, 1)
+y1 = torch.ones(100)                # 类型1 y data (tensor), shape=(100, )
+
+# 注意 x, y 数据的数据形式是一定要像下面一样 (torch.cat 是在合并数据)
+x = torch.cat((x0, x1), 0).type(torch.FloatTensor)  # FloatTensor = 32-bit floating
+y = torch.cat((y0, y1), ).type(torch.LongTensor)    # LongTensor = 64-bit integer
+
+# plt.scatter(x.data.numpy()[:, 0], x.data.numpy()[:, 1], c=y.data.numpy(), s=100, lw=0, cmap='RdYlGn')
+# plt.show()
+
+# 画图
+plt.scatter(x.data.numpy(), y.data.numpy())
+plt.show()
+
+```
+
+### 建立神经网络
+
+```python
+import torch
+import torch.nn.functional as F     # 激励函数都在这
+
+class Net(torch.nn.Module):     # 继承 torch 的 Module
+    def __init__(self, n_feature, n_hidden, n_output):
+        super(Net, self).__init__()     # 继承 __init__ 功能
+        self.hidden = torch.nn.Linear(n_feature, n_hidden)   # 隐藏层线性输出
+        self.out = torch.nn.Linear(n_hidden, n_output)       # 输出层线性输出
+
+    def forward(self, x):
+        # 正向传播输入值, 神经网络分析出输出值
+        x = F.relu(self.hidden(x))      # 激励函数(隐藏层的线性值)
+        x = self.out(x)                 # 输出值, 但是这个不是预测值, 预测值还需要再另外计算
+        return x
+
+net = Net(n_feature=2, n_hidden=10, n_output=2) # 几个类别就几个 output
+
+print(net)  # net 的结构
+"""
+Net (
+  (hidden): Linear (2 -> 10)
+  (out): Linear (10 -> 2)
+)
+"""
+
+```
+
+### 训练网络
+
+```python
+# optimizer 是训练的工具
+optimizer = torch.optim.SGD(net.parameters(), lr=0.02)  # 传入 net 的所有参数, 学习率
+# 算误差的时候, 注意真实值!不是! one-hot 形式的, 而是1D Tensor, (batch,)
+# 但是预测值是2D tensor (batch, n_classes)
+loss_func = torch.nn.CrossEntropyLoss()
+
+for t in range(100):
+    out = net(x)     # 喂给 net 训练数据 x, 输出分析值
+
+    loss = loss_func(out, y)     # 计算两者的误差
+
+    optimizer.zero_grad()   # 清空上一步的残余更新参数值
+    loss.backward()         # 误差反向传播, 计算参数更新值
+    optimizer.step()        # 将参数更新值施加到 net 的 parameters 上
+
 ```
 
 
+
+### 可视化训练过程
+
+```python
+import matplotlib.pyplot as plt
+
+plt.ion()   # 画图
+plt.show()
+
+for t in range(100):
+
+    ...
+    loss.backward()
+    optimizer.step()
+
+    # 接着上面来
+    if t % 2 == 0:
+        plt.cla()
+        # 过了一道 softmax 的激励函数后的最大概率才是预测值
+        prediction = torch.max(F.softmax(out), 1)[1]
+        pred_y = prediction.data.numpy().squeeze()
+        target_y = y.data.numpy()
+        plt.scatter(x.data.numpy()[:, 0], x.data.numpy()[:, 1], c=pred_y, s=100, lw=0, cmap='RdYlGn')
+        accuracy = sum(pred_y == target_y)/200.  # 预测中有多少和真实值一样
+        plt.text(1.5, -4, 'Accuracy=%.2f' % accuracy, fontdict={'size': 20, 'color':  'red'})
+        plt.pause(0.1)
+
+plt.ioff()  # 停止画图
+plt.show()
+
+```
+
+## 快速搭建法
+
+### 传统神经网络，层层搭建
+
+```python
+class Net(torch.nn.Module):
+    def __init__(self, n_feature, n_hidden, n_output):
+        super(Net, self).__init__()
+        self.hidden = torch.nn.Linear(n_feature, n_hidden)
+        self.predict = torch.nn.Linear(n_hidden, n_output)
+
+    def forward(self, x):
+        x = F.relu(self.hidden(x))
+        x = self.predict(x)
+        return x
+
+net1 = Net(1, 10, 1)   # 这是我们用这种方式搭建的 net1
+```
+
+### 快速搭建
+
+```python
+net2 = torch.nn.Sequential(
+    torch.nn.Linear(1, 10),
+    torch.nn.ReLU(),
+    torch.nn.Linear(10, 1)
+)
+
+```
+
+## 分批训练
+
+`DataLoader` 是 torch 给你用来包装你的数据的工具. 所以你要将自己的 (numpy array 或其他) 数据形式装换成 Tensor, 然后再放进这个包装器中. 
+
+优点： 自动分批放入数据训练模型
+
+```python
+import torch
+import torch.utils.data as Data
+torch.manual_seed(1)    # reproducible
+
+BATCH_SIZE = 5      # 批训练的数据个数
+
+x = torch.linspace(1, 10, 10)       # x data (torch tensor)
+y = torch.linspace(10, 1, 10)       # y data (torch tensor)
+
+# 先转换成 torch 能识别的 Dataset
+torch_dataset = Data.TensorDataset(data_tensor=x, target_tensor=y)
+
+# 把 dataset 放入 DataLoader
+loader = Data.DataLoader(
+    dataset=torch_dataset,      # torch TensorDataset format
+    batch_size=BATCH_SIZE,      # mini batch size
+    shuffle=True,               # 要不要打乱数据 (打乱比较好)
+    num_workers=2,              # 多线程来读数据
+)
+
+for epoch in range(3):   # 训练所有!整套!数据 3 次
+    for step, (batch_x, batch_y) in enumerate(loader):  # 每一步 loader 释放一小批数据用来学习
+        # 假设这里就是你训练的地方...
+
+        # 打出来一些数据
+        print('Epoch: ', epoch, '| Step: ', step, '| batch x: ',
+              batch_x.numpy(), '| batch y: ', batch_y.numpy())
+
+"""
+Epoch:  0 | Step:  0 | batch x:  [ 6.  7.  2.  3.  1.] | batch y:  [  5.   4.   9.   8.  10.]
+Epoch:  0 | Step:  1 | batch x:  [  9.  10.   4.   8.   5.] | batch y:  [ 2.  1.  7.  3.  6.]
+Epoch:  1 | Step:  0 | batch x:  [  3.   4.   2.   9.  10.] | batch y:  [ 8.  7.  9.  2.  1.]
+Epoch:  1 | Step:  1 | batch x:  [ 1.  7.  8.  5.  6.] | batch y:  [ 10.   4.   3.   6.   5.]
+Epoch:  2 | Step:  0 | batch x:  [ 3.  9.  2.  6.  7.] | batch y:  [ 8.  2.  9.  5.  4.]
+Epoch:  2 | Step:  1 | batch x:  [ 10.   4.   8.   1.   5.] | batch y:  [  1.   7.   3.  10.   6.]
+"""
+```
 
